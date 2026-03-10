@@ -1,65 +1,155 @@
-import Image from "next/image";
+"use client";
+
+import { BrowserView } from "@/components/BrowserView";
+import { ResultCard } from "@/components/ResultCard";
+import { SearchForm } from "@/components/SearchForm";
+import { StatusLog } from "@/components/StatusLog";
+import { useTicketSearch } from "@/hooks/useTicketSearch";
 
 export default function Home() {
+  const {
+    isLoading,
+    isDisabled,
+    statusEntries,
+    browserSessions,
+    tickets,
+    error,
+    finalAnswer,
+    startSearch,
+  } = useTicketSearch();
+
+  const hasResults = tickets.length > 0 || finalAnswer !== null;
+  const hasActivity = isLoading || statusEntries.length > 0;
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="flex min-h-screen flex-col">
+      {/* ── Navigation ── */}
+      <nav className="fixed left-0 right-0 top-0 z-40 border-b border-white/5 bg-slate-900/80 backdrop-blur-md">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-white">bright</span>
+            <span className="font-bold text-[#3D7FFC]">data</span>
+            <span className="mx-1 text-white/40">×</span>
+            <span className="font-bold text-white">Ticket Hunter</span>
+            <span className="ml-2 rounded bg-white/10 px-2 py-0.5 text-xs text-white/50">
+              AI Agent
+            </span>
+          </div>
+          <a
+            href="https://brightdata.com"
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-lg border border-[#3D7FFC]/30 bg-[#3D7FFC]/10 px-4 py-1.5 text-sm font-medium text-[#3D7FFC] transition-colors hover:bg-[#3D7FFC]/20"
+          >
+            Bright Data
+          </a>
+        </div>
+      </nav>
+
+      {/* ── Main ── */}
+      <main className="flex-1 pt-20 pb-16">
+        {/* ── Hero + Search ── */}
+        <section className={`px-4 text-center ${hasActivity ? "py-6" : "py-12"}`}>
+          {/* Badge */}
+          {!hasActivity && (
+            <span className="mb-6 inline-block rounded-full border border-[#3D7FFC]/30 bg-gradient-to-r from-[#9D97F4]/20 via-[#3D7FFC]/20 to-[#15C1E6]/20 px-4 py-1.5 text-sm font-medium text-[#3D7FFC]">
+              Powered by Bright Data &amp; Yutori N1
+            </span>
+          )}
+
+          <h1 className={`mb-3 font-bold text-white ${hasActivity ? "text-3xl" : "text-5xl md:text-6xl"}`}>
+            Ticket Hunter
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+          {!hasActivity && (
+            <p className="mx-auto mb-10 max-w-2xl text-lg text-white/60">
+              AI agent that autonomously browses StubHub, Ticketmaster, SeatGeek
+              and more to find you the best available seats — live.
+            </p>
+          )}
+
+          <div className={hasActivity ? "mb-2" : "mb-0"}>
+            <SearchForm
+              onSubmit={startSearch}
+              isLoading={isLoading}
+              isDisabled={isDisabled}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+          </div>
+        </section>
+
+        {/* ── Agent workspace (visible once search starts) ── */}
+        {hasActivity && (
+          <section className="mx-auto max-w-[1600px] px-4">
+            {/* Two-column: browser (left, larger) + status log (right) */}
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px] items-start">
+              <BrowserView
+                browserSessions={browserSessions}
+                isLoading={isLoading}
+              />
+              <StatusLog entries={statusEntries} isLoading={isLoading} />
+            </div>
+          </section>
+        )}
+
+        {/* ── Error banner ── */}
+        {error && (
+          <section className="mx-auto mt-6 max-w-7xl px-4">
+            <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm text-red-400">
+              {error}
+            </div>
+          </section>
+        )}
+
+        {/* ── Results ── */}
+        {hasResults && (
+          <section className="mx-auto mt-8 max-w-7xl px-4">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-white">
+                Tickets found
+                <span className="ml-2 rounded bg-[#3D7FFC]/10 px-2 py-0.5 text-sm font-normal text-[#3D7FFC]">
+                  {tickets.length}
+                </span>
+              </h2>
+            </div>
+
+            {tickets.length > 0 ? (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {tickets.map((ticket, i) => (
+                  <ResultCard key={i} ticket={ticket} index={i} />
+                ))}
+              </div>
+            ) : finalAnswer ? (
+              /* Fallback: raw N1 answer when structured parsing yielded nothing */
+              <div className="rounded-xl border border-white/10 bg-slate-900/60 p-6 text-sm leading-relaxed text-white/80 whitespace-pre-wrap">
+                {finalAnswer}
+              </div>
+            ) : null}
+          </section>
+        )}
       </main>
+
+      {/* ── Footer ── */}
+      <footer className="border-t border-white/5 py-6 text-center">
+        <p className="text-sm text-white/40">
+          Powered by{" "}
+          <a
+            href="https://brightdata.com"
+            target="_blank"
+            rel="noreferrer"
+            className="text-white/60 underline hover:text-white"
+          >
+            Bright Data
+          </a>{" "}
+          &amp;{" "}
+          <a
+            href="https://yutori.com"
+            target="_blank"
+            rel="noreferrer"
+            className="text-white/60 underline hover:text-white"
+          >
+            Yutori N1
+          </a>
+        </p>
+      </footer>
     </div>
   );
 }
