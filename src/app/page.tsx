@@ -18,7 +18,11 @@ export default function Home() {
     startSearch,
   } = useTicketSearch();
 
-  const hasResults = tickets.length > 0 || finalAnswer !== null;
+  const validTickets = tickets.filter((t) => {
+    const isUnknown = (v: string) => !v || v.toLowerCase() === "unknown";
+    return !(isUnknown(t.eventName) && isUnknown(t.price));
+  });
+  const hasResults = validTickets.length > 0 || finalAnswer !== null;
   const hasActivity = isLoading || statusEntries.length > 0;
 
   return (
@@ -106,14 +110,14 @@ export default function Home() {
               <h2 className="text-lg font-semibold text-white">
                 Tickets found
                 <span className="ml-2 rounded bg-[#3D7FFC]/10 px-2 py-0.5 text-sm font-normal text-[#3D7FFC]">
-                  {tickets.length}
+                  {validTickets.length}
                 </span>
               </h2>
             </div>
 
-            {tickets.length > 0 ? (
+            {validTickets.length > 0 ? (
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {tickets.map((ticket, i) => (
+                {validTickets.map((ticket, i) => (
                   <ResultCard key={i} ticket={ticket} index={i} />
                 ))}
               </div>

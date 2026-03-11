@@ -5,6 +5,10 @@ interface ResultCardProps {
   index?: number;
 }
 
+function isUnknown(value: string | undefined): boolean {
+  return !value || value.toLowerCase() === "unknown";
+}
+
 function DetailCell({
   label,
   value,
@@ -12,7 +16,7 @@ function DetailCell({
   label: string;
   value: string;
 }) {
-  if (!value) return null;
+  if (isUnknown(value)) return null;
   return (
     <div>
       <p className="mb-0.5 text-xs uppercase tracking-wider text-white/40">
@@ -40,14 +44,14 @@ export function ResultCard({ ticket, index = 0 }: ResultCardProps) {
           </span>
 
           {/* Event name */}
-          {ticket.eventName && (
+          {!isUnknown(ticket.eventName) && (
             <h3 className="truncate text-base font-semibold text-white">
               {ticket.eventName}
             </h3>
           )}
 
           {/* Venue + city */}
-          {(ticket.venue || ticket.city) && (
+          {(!isUnknown(ticket.venue) || !isUnknown(ticket.city)) && (
             <p className="mt-0.5 flex items-center gap-1 text-sm text-white/60">
               <svg
                 className="h-3.5 w-3.5 flex-shrink-0"
@@ -68,20 +72,22 @@ export function ResultCard({ ticket, index = 0 }: ResultCardProps) {
                   d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
                 />
               </svg>
-              {[ticket.venue, ticket.city].filter(Boolean).join(" · ")}
+              {[ticket.venue, ticket.city].filter(v => !isUnknown(v)).join(" · ")}
             </p>
           )}
         </div>
 
         {/* Price — prominent */}
         <div className="flex-shrink-0 text-right">
-          <p className="text-xl font-bold text-white">
-            {ticket.currency && ticket.currency !== ticket.price.slice(0, 1)
-              ? `${ticket.currency} `
-              : ""}
-            {ticket.price}
-          </p>
-          {ticket.ticketType && (
+          {!isUnknown(ticket.price) && (
+            <p className="text-xl font-bold text-white">
+              {ticket.currency && ticket.currency !== ticket.price.slice(0, 1)
+                ? `${ticket.currency} `
+                : ""}
+              {ticket.price}
+            </p>
+          )}
+          {ticket.ticketType && ticket.ticketType !== "Unknown" && (
             <p className="text-xs text-white/50">{ticket.ticketType}</p>
           )}
         </div>
@@ -91,15 +97,9 @@ export function ResultCard({ ticket, index = 0 }: ResultCardProps) {
       <div className="mb-4 grid grid-cols-3 gap-4 border-t border-white/5 pt-4">
         <DetailCell label="Section" value={ticket.section} />
         <DetailCell label="Row" value={ticket.row} />
-        {ticket.seats?.toLowerCase() !== "unknown" && (
-          <DetailCell label="Seats" value={ticket.seats} />
-        )}
-        {ticket.quantity && (
-          <DetailCell label="Qty" value={ticket.quantity} />
-        )}
-        {ticket.eventDate && (
-          <DetailCell label="Date" value={ticket.eventDate} />
-        )}
+        <DetailCell label="Seats" value={ticket.seats} />
+        <DetailCell label="Qty" value={ticket.quantity} />
+        <DetailCell label="Date" value={ticket.eventDate} />
       </div>
 
       {/* Notes */}
