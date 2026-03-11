@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="public/brightdata.svg" height="40" alt="Bright Data" />
+<img src="public/brightdata-dark.svg" height="40" alt="Bright Data" />
 &nbsp;&nbsp;&nbsp;×&nbsp;&nbsp;&nbsp;
 <img src="public/yutori.png" height="28" alt="Yutori N1" />
 
