@@ -26,7 +26,7 @@ export default function Home() {
   const hasActivity = isLoading || statusEntries.length > 0;
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col bg-transparent">
       {/* ── Navigation ── */}
       <nav className="fixed left-0 right-0 top-0 z-40 border-b border-white/5 bg-slate-900/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-center px-6 py-3">
@@ -45,11 +45,6 @@ export default function Home() {
         {/* ── Hero + Search ── */}
         <section className={`px-4 text-center ${hasActivity ? "py-6" : "py-12"}`}>
           {/* Badge */}
-          {!hasActivity && (
-            <span className="mb-6 inline-block rounded-full border border-[#3D7FFC]/30 bg-gradient-to-r from-[#9D97F4]/20 via-[#3D7FFC]/20 to-[#15C1E6]/20 px-4 py-1.5 text-sm font-medium text-[#3D7FFC]">
-              Powered by Bright Data &amp; Yutori N1
-            </span>
-          )}
 
           <h1 className={`mb-3 font-bold text-white ${hasActivity ? "text-3xl" : "text-5xl md:text-6xl"}`}>
             Ticket Hunter

@@ -1,2 +1,12 @@
 @import "tailwindcss";
 
+body {
+  background-color: #0a1628;
+  background-image:
+    /* subtle radial glow in the center-top */
+    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(30, 58, 120, 0.5) 0%, transparent 70%),
+    /* grid lines */
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: auto, 80px 80px, 80px 80px;
+}
