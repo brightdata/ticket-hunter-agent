@@ -5,6 +5,7 @@ import { ResultCard } from "@/components/ResultCard";
 import { SearchForm } from "@/components/SearchForm";
 import { StatusLog } from "@/components/StatusLog";
 import { useTicketSearch } from "@/hooks/useTicketSearch";
+import { useState, useEffect } from "react";
 
 export default function Home() {
   const {
@@ -17,6 +18,12 @@ export default function Home() {
     finalAnswer,
     startSearch,
   } = useTicketSearch();
+
+  const [showModal, setShowModal] = useState(false);
+
+  useEffect(() => {
+    if (error) setShowModal(true);
+  }, [error]);
 
   const validTickets = tickets.filter((t) => {
     const isUnknown = (v: string) => !v || v.toLowerCase() === "unknown";
@@ -79,13 +86,68 @@ export default function Home() {
           </section>
         )}
 
-        {/* ── Error banner ── */}
-        {error && (
-          <section className="mx-auto mt-6 max-w-7xl px-4">
-            <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm text-red-400">
-              {error}
+        {/* ── Rate-limit / error modal ── */}
+        {showModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setShowModal(false)}
+            />
+            {/* Card */}
+            <div className="relative w-full max-w-md rounded-2xl border border-white/10 bg-[#0d1b2e] p-8 shadow-2xl">
+              {/* Close */}
+              <button
+                onClick={() => setShowModal(false)}
+                className="absolute right-4 top-4 text-white/30 hover:text-white/70 transition-colors text-xl leading-none"
+              >
+                ✕
+              </button>
+
+              {/* Icon */}
+              <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-full border border-[#3D7FFC]/30 bg-[#3D7FFC]/10">
+                <span className="text-2xl">🎟️</span>
+              </div>
+
+              <h2 className="mb-2 text-2xl font-bold text-white">It&apos;s just a demo!</h2>
+              <p className="mb-1 text-sm text-white/50">
+                You&apos;ve hit the rate limit for this live demo.
+              </p>
+              <p className="mb-7 text-sm text-white/50">
+                Clone the repo and run it yourself — unlimited searches, your own keys.
+              </p>
+
+              <div className="flex flex-col gap-3">
+                <a
+                  href="https://github.com/brightdata/ticket-hunter-agent"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-center gap-2 rounded-xl bg-[#3D7FFC] px-5 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                >
+                  <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                  </svg>
+                  Clone the repo
+                </a>
+                <a
+                  href="https://docs.brightdata.com/scraping-automation/scraping-browser/introduction"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white/80 transition-colors hover:bg-white/10"
+                >
+                  Learn about Bright Data
+                </a>
+                <a
+                  href="https://docs.yutori.com/reference/n1"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white/80 transition-colors hover:bg-white/10"
+                >
+                  Learn about Yutori N1
+                </a>
+              </div>
             </div>
-          </section>
+          </div>
         )}
 
         {/* ── Results ── */}
