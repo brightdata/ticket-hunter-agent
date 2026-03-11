@@ -29,24 +29,14 @@ export default function Home() {
     <div className="flex min-h-screen flex-col">
       {/* ── Navigation ── */}
       <nav className="fixed left-0 right-0 top-0 z-40 border-b border-white/5 bg-slate-900/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-white">bright</span>
-            <span className="font-bold text-[#3D7FFC]">data</span>
-            <span className="mx-1 text-white/40">×</span>
-            <span className="font-bold text-white">Ticket Hunter</span>
-            <span className="ml-2 rounded bg-white/10 px-2 py-0.5 text-xs text-white/50">
-              AI Agent
-            </span>
+        <div className="mx-auto flex max-w-7xl items-center justify-center px-6 py-3">
+          <div className="flex items-center gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brightdata.svg" alt="Bright Data" className="h-8" />
+            <span className="text-white/40">×</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/yutori.png" alt="Yutori" className="h-6" style={{ filter: "invert(1) brightness(2)" }} />
           </div>
-          <a
-            href="https://brightdata.com"
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-lg border border-[#3D7FFC]/30 bg-[#3D7FFC]/10 px-4 py-1.5 text-sm font-medium text-[#3D7FFC] transition-colors hover:bg-[#3D7FFC]/20"
-          >
-            Bright Data
-          </a>
         </div>
       </nav>
 
