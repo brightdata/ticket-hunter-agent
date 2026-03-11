@@ -18,6 +18,9 @@ export const metadata: Metadata = {
   title: "Ticket Hunter — Find the Best Tickets with AI",
   description:
     "AI-powered ticket finder that autonomously browses StubHub, Ticketmaster, SeatGeek and more to find you the best available seats.",
+  icons: {
+    icon: "/favicon.png",
+  },
   openGraph: {
     title: "Ticket Hunter — Find the Best Tickets with AI",
     description:
