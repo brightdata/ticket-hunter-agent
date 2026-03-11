@@ -59,7 +59,7 @@ export default function Home() {
           {!hasActivity && (
             <p className="mx-auto mb-10 max-w-2xl text-lg text-white/60">
               AI agent that autonomously browses StubHub, Ticketmaster, SeatGeek
-              and more to find you the best available seats — live.
+              and more to find you the best available seats - live.
             </p>
           )}
 
