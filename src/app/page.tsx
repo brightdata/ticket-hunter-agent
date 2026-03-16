@@ -1,5 +1,6 @@
 "use client";
 
+import { AgentSummary } from "@/components/AgentSummary";
 import { BrowserView } from "@/components/BrowserView";
 import { ResultCard } from "@/components/ResultCard";
 import { SearchForm } from "@/components/SearchForm";
@@ -57,10 +58,45 @@ export default function Home() {
             Ticket Hunter
           </h1>
           {!hasActivity && (
-            <p className="mx-auto mb-10 max-w-2xl text-lg text-white/60">
-              AI agent that autonomously browses StubHub, Ticketmaster, SeatGeek
-              and more to find you the best available seats - live.
-            </p>
+            <>
+              <p className="mx-auto mb-8 max-w-2xl text-lg leading-relaxed text-white/50">
+                Type any event. This AI agent will search Google, open real browsers
+                across ticket platforms, and autonomously navigate them to find you
+                the best available seats&nbsp;&mdash;&nbsp;streaming every step live.
+              </p>
+
+              {/* ── Pipeline visualization ── */}
+              <div className="mx-auto mb-12 max-w-2xl">
+                <div className="relative grid grid-cols-4">
+                  {/* Connecting line */}
+                  <div className="pointer-events-none absolute top-[15px] left-[12.5%] right-[12.5%] h-px bg-gradient-to-r from-[#9D97F4]/25 via-[#3D7FFC]/25 to-emerald-400/25" />
+
+                  {[
+                    { num: "1", label: "Search Google", tech: "Bright Data SERP", color: "#9D97F4" },
+                    { num: "2", label: "Open Browsers", tech: "Scraping Browser", color: "#3D7FFC" },
+                    { num: "3", label: "Navigate Pages", tech: "Yutori N1 Vision", color: "#15C1E6" },
+                    { num: "4", label: "Best Tickets", tech: "Ranked results", color: "#34d399" },
+                  ].map((step) => (
+                    <div key={step.num} className="relative flex flex-col items-center text-center">
+                      <div
+                        className="mb-3 flex h-[30px] w-[30px] items-center justify-center rounded-full text-xs font-bold"
+                        style={{
+                          background: `${step.color}15`,
+                          border: `1px solid ${step.color}30`,
+                          color: step.color,
+                        }}
+                      >
+                        {step.num}
+                      </div>
+                      <p className="text-[13px] font-medium text-white/60">{step.label}</p>
+                      <p className="mt-0.5 text-[11px]" style={{ color: `${step.color}aa` }}>
+                        {step.tech}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
 
           <div className={hasActivity ? "mb-2" : "mb-0"}>
@@ -148,6 +184,15 @@ export default function Home() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* ── Agent Summary (shown when done) ── */}
+        {hasResults && !isLoading && (
+          <AgentSummary
+            entries={statusEntries}
+            platformCount={Object.keys(browserSessions).length}
+            ticketCount={validTickets.length}
+          />
         )}
 
         {/* ── Results ── */}
