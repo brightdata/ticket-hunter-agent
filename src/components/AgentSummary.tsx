@@ -54,7 +54,7 @@ export function AgentSummary({
     {
       label: "Pages Browsed",
       value: stats.pagesOpened,
-      sub: "Scraping Browser",
+      sub: "Browser API",
       icon: (
         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9" />
@@ -117,7 +117,7 @@ export function AgentSummary({
         <p className="mt-4 text-xs leading-relaxed text-white/40">
           Searched Google via <span className="text-white/60">Bright Data SERP API</span>,
           opened {stats.pagesOpened} ticket {stats.pagesOpened === 1 ? "site" : "sites"} in
-          a <span className="text-white/60">Bright Data Scraping Browser</span>,
+          a <span className="text-white/60">Bright Data Browser API</span>,
           autonomously navigated with <span className="text-white/60">Yutori N1</span> vision
           model, and extracted {ticketCount} structured {ticketCount === 1 ? "result" : "results"}.
         </p>

@@ -44,7 +44,7 @@ User Query
                          ▼
 ┌─────────────────────────────────────────────────────────┐
 │  Stage 2 · Browser Pipeline                             │
-│  Connects to Bright Data Scraping Browser via CDP       │
+│  Connects to Bright Data Browser API via CDP            │
 │  Opens each URL with a real Chromium instance           │
 │  Takes initial screenshot → streamed to UI live         │
 └────────────────────────┬────────────────────────────────┘
@@ -82,7 +82,7 @@ User Query
 | **Styling** | [Tailwind CSS 4](https://tailwindcss.com) |
 | **Agent Orchestration** | [LangGraph](https://langchain-ai.github.io/langgraphjs/) |
 | **Browser Automation** | [Playwright Core](https://playwright.dev) + Chrome DevTools Protocol (CDP) |
-| **Web Infrastructure** | [Bright Data Scraping Browser](https://brightdata.com/products/scraping-browser) + SERP API |
+| **Web Infrastructure** | [Bright Data Browser API](https://brightdata.com/products/scraping-browser) + SERP API |
 | **Vision LLM** | [Yutori N1](https://yutori.com) (multimodal, tool-use) |
 | **Extraction LLM** | [OpenRouter](https://openrouter.ai) → Google Gemini Flash |
 | **Rate Limiting** | [Upstash Redis](https://upstash.com) (per-IP, 1 search / 24h for the demo) |
@@ -113,7 +113,7 @@ The agent autonomously detects and browses any of these platforms based on Googl
 ### Prerequisites
 
 - Node.js 18+
-- A [Bright Data](https://brightdata.com) account with Scraping Browser + SERP API enabled
+- A [Bright Data](https://brightdata.com) account with Browser API + SERP API enabled
 - A [Yutori N1](https://yutori.com) API key
 - An [OpenRouter](https://openrouter.ai) API key
 - An [Upstash](https://upstash.com) Redis database (for rate limiting)
@@ -139,8 +139,8 @@ Create a `.env.local` file in the project root:
 # Yutori N1 — vision LLM for autonomous browsing
 YUTORI_API_KEY=your_yutori_api_key
 
-# Bright Data — Scraping Browser CDP WebSocket endpoint
-# Found in your Bright Data dashboard under Scraping Browser > Access Parameters
+# Bright Data — Browser API CDP WebSocket endpoint
+# Found in your Bright Data dashboard under Browser API > Access Parameters
 BRD_CDP_URL=wss://brd-customer-<id>-zone-<zone>:<password>@brd.superproxy.io:9222
 
 # Bright Data — API key for SERP and Web Unlocker
@@ -295,7 +295,7 @@ When running locally with your own keys, this limit is not enforced unless you c
 
 [Bright Data](https://brightdata.com) provides the web infrastructure that makes the agent possible:
 
-- **Scraping Browser** — a real Chromium instance with residential proxy routing, anti-bot bypass, and JavaScript execution, connected via CDP
+- **Browser API** — a real Chromium instance with residential proxy routing, anti-bot bypass, and JavaScript execution, connected via CDP
 - **SERP API** — reliable Google search results to discover the right ticket platform URLs
 
 </td>
