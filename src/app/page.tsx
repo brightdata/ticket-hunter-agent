@@ -72,8 +72,8 @@ export default function Home() {
                   <div className="pointer-events-none absolute top-[15px] left-[12.5%] right-[12.5%] h-px bg-gradient-to-r from-[#9D97F4]/25 via-[#3D7FFC]/25 to-emerald-400/25" />
 
                   {[
-                    { num: "1", label: "Search Google", tech: "Bright Data SERP", color: "#9D97F4" },
-                    { num: "2", label: "Open Browsers", tech: "Scraping Browser", color: "#3D7FFC" },
+                    { num: "1", label: "Web Search", tech: "Bright Data SERP", color: "#9D97F4" },
+                    { num: "2", label: "Open Browsers", tech: "Browser API", color: "#3D7FFC" },
                     { num: "3", label: "Navigate Pages", tech: "Yutori N1 Vision", color: "#15C1E6" },
                     { num: "4", label: "Best Tickets", tech: "Ranked results", color: "#34d399" },
                   ].map((step) => (
