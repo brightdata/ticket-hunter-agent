@@ -78,7 +78,7 @@ export default function Home() {
                   {[
                     { num: "1", label: "Web Search", tech: "Bright Data SERP", color: "#9D97F4" },
                     { num: "2", label: "Open Browsers", tech: "Browser API", color: "#3D7FFC" },
-                    { num: "3", label: "Navigate Pages", tech: "Yutori N1 Vision", color: "#15C1E6" },
+                    { num: "3", label: "Navigate Pages", tech: "Yutori n1 Vision", color: "#15C1E6" },
                     { num: "4", label: "Best Tickets", tech: "Ranked results", color: "#34d399" },
                   ].map((step) => (
                     <div key={step.num} className="relative flex flex-col items-center text-center">
@@ -183,7 +183,7 @@ export default function Home() {
                   rel="noreferrer"
                   className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white/80 transition-colors hover:bg-white/10"
                 >
-                  Learn about Yutori N1
+                  Learn about Yutori n1
                 </a>
               </div>
             </div>
@@ -218,7 +218,7 @@ export default function Home() {
                 ))}
               </div>
             ) : finalAnswer ? (
-              /* Fallback: raw N1 answer when structured parsing yielded nothing */
+              /* Fallback: raw n1 answer when structured parsing yielded nothing */
               <div className="rounded-xl border border-white/10 bg-slate-900/60 p-6 text-sm leading-relaxed text-white/80 whitespace-pre-wrap">
                 {finalAnswer}
               </div>
@@ -246,7 +246,7 @@ export default function Home() {
             rel="noreferrer"
             className="text-white/60 underline hover:text-white"
           >
-            Yutori N1
+            Yutori n1
           </a>
         </p>
       </footer>
