@@ -132,10 +132,15 @@ export async function POST(request: Request): Promise<Response> {
         let sentError = false;
 
         const forwardAgentEvent = (event: AgentStreamEvent) => {
+          const source = event.source ?? null;
           if (event.type === "error") {
             sentError = true;
+            log("warn", "Suppressed agent error (not forwarded to client).", {
+              message: event.message,
+              source,
+            });
+            return;
           }
-          const source = event.source ?? null;
 
           if (event.type === "screenshot") {
             log("info", "Agent event.", {
@@ -171,20 +176,27 @@ export async function POST(request: Request): Promise<Response> {
             async () => runTicketHunterAgent(initialState),
           );
 
-          if (finalState.error) {
-            if (!sentError) {
-              safelySend({ type: "error", message: finalState.error });
-            }
-            log("warn", "Agent completed with error.", {
-              error: finalState.error,
-              stepCount: finalState.stepCount,
-            });
-          } else {
+          const hasTickets = finalState.tickets.length > 0;
+          const hasAnswer = Boolean(finalState.finalAnswer);
+
+          if (hasTickets || hasAnswer) {
             safelySend({
               type: "result",
               tickets: finalState.tickets,
               finalAnswer: finalState.finalAnswer,
             });
+          }
+
+          if (finalState.error) {
+            log("warn", "Agent completed with error.", {
+              error: finalState.error,
+              stepCount: finalState.stepCount,
+              hadResults: hasTickets || hasAnswer,
+            });
+            if (!hasTickets && !hasAnswer && !sentError) {
+              safelySend({ type: "error", message: finalState.error });
+            }
+          } else {
             log("info", "Agent completed successfully.", {
               ticketCount: finalState.tickets.length,
               stepCount: finalState.stepCount,
@@ -194,7 +206,6 @@ export async function POST(request: Request): Promise<Response> {
         } catch (error) {
           const message =
             error instanceof Error ? error.message : "Unexpected agent failure.";
-          safelySend({ type: "error", message });
           log("error", "Unhandled route error.", { error: message });
         } finally {
           await clearAgentRuntimeSession();

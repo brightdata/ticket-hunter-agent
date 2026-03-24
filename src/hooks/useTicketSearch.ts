@@ -61,7 +61,11 @@ export function useTicketSearch(): TicketSearchHook {
     setState({ ...INITIAL_STATE, isLoading: true });
 
     void (async () => {
-      const addStatus = (message: string) =>
+      const ERROR_KEYWORDS = /error|fail|missing/i;
+
+      const addStatus = (message: string) => {
+        // Suppress error-like messages from the visible log to keep the demo clean.
+        if (ERROR_KEYWORDS.test(message)) return;
         setState((prev) => ({
           ...prev,
           statusEntries: [
@@ -69,6 +73,7 @@ export function useTicketSearch(): TicketSearchHook {
             { timestamp: timestamp(), message },
           ],
         }));
+      };
 
       const updateSession = (
         source: string | undefined,
@@ -134,7 +139,6 @@ export function useTicketSearch(): TicketSearchHook {
               }));
               break;
             case "error":
-              addStatus(`Error: ${event.message}`);
               setState((prev) => ({ ...prev, error: event.message }));
               break;
             case "done":

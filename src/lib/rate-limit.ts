@@ -1,6 +1,7 @@
 import { Redis } from "@upstash/redis";
 
 const RATE_LIMIT_WINDOW_SECONDS = 24 * 60 * 60;
+const RATE_LIMIT_MAX_REQUESTS = 3;
 const RATE_LIMIT_KEY_PREFIX = "ip";
 
 let redisClient: Redis | null = null;
@@ -52,10 +53,12 @@ export async function checkRateLimit(ip: string): Promise<RateLimitResult> {
   const normalizedIp = normalizeIp(ip);
   const key = `${RATE_LIMIT_KEY_PREFIX}:${normalizedIp}`;
   const redis = getRedisClient();
-  const setResult = await redis.set(key, "100", {
-    ex: RATE_LIMIT_WINDOW_SECONDS,
-    nx: true,
-  });
 
-  return { allowed: setResult === "OK" };
+  const count = await redis.incr(key);
+
+  if (count === 1) {
+    await redis.expire(key, RATE_LIMIT_WINDOW_SECONDS);
+  }
+
+  return { allowed: count <= RATE_LIMIT_MAX_REQUESTS };
 }
