@@ -1,4 +1,5 @@
 import type { Page } from "playwright-core";
+import { retryNavigation } from "@/lib/agent/browser-utils";
 
 export interface ViewportSize {
   w: number;
@@ -371,7 +372,9 @@ async function resolveActivePageAfterPopup(
   if (!page.isClosed() && popupUrl && popupUrl !== "about:blank") {
     try {
       if (popupUrl !== page.url()) {
-        await page.goto(popupUrl, { waitUntil: "domcontentloaded" });
+        await retryNavigation(() =>
+          page.goto(popupUrl, { waitUntil: "domcontentloaded" }),
+        );
       }
       await popup.close().catch(() => {});
       return page;
@@ -464,7 +467,9 @@ async function clickInCurrentPage(
   const usablePage = await ensureUsablePage(page);
   const anchorCandidate = await findAnchorNavigationCandidate(usablePage, point);
   if (anchorCandidate && isDirectNavigationUrl(anchorCandidate.href)) {
-    await usablePage.goto(anchorCandidate.href, { waitUntil: "domcontentloaded" });
+    await retryNavigation(() =>
+      usablePage.goto(anchorCandidate.href, { waitUntil: "domcontentloaded" }),
+    );
     return ensureUsablePage(usablePage);
   }
 
@@ -670,7 +675,9 @@ export async function executeN1Action(
       throw new Error("goto_url action is missing URL.");
     }
 
-    await activePage.goto(url, { waitUntil: "domcontentloaded" });
+    await retryNavigation(() =>
+      activePage.goto(url, { waitUntil: "domcontentloaded" }),
+    );
     return ensureUsablePage(activePage);
   }
 

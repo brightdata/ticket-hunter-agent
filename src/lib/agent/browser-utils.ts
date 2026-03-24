@@ -50,6 +50,38 @@ export function applyNavigationTimeouts(
   page.setDefaultNavigationTimeout(NAVIGATION_TIMEOUT_MS);
 }
 
+const RETRY_DELAYS_MS = [2_000, 4_000, 8_000];
+
+function isRetryableNavigationError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const msg = error.message;
+  return (
+    msg.includes("cooldown") ||
+    msg.includes("no_peers") ||
+    msg.includes("ERR_CONNECTION_RESET") ||
+    msg.includes("ERR_CONNECTION_CLOSED") ||
+    msg.includes("Target closed") ||
+    msg.includes("Session closed")
+  );
+}
+
+export async function retryNavigation<T>(
+  fn: () => Promise<T>,
+  retries = RETRY_DELAYS_MS.length,
+): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (attempt >= retries || !isRetryableNavigationError(error)) {
+        throw error;
+      }
+      const delay = RETRY_DELAYS_MS[attempt] ?? RETRY_DELAYS_MS.at(-1)!;
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+}
+
 export async function capturePageScreenshotDataUrl(page: Page): Promise<string> {
   process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY = "1";
 

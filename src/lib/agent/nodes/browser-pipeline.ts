@@ -3,6 +3,7 @@ import {
   applyNavigationTimeouts,
   capturePageScreenshotDataUrl,
   installSingleTabNavigation,
+  retryNavigation,
 } from "@/lib/agent/browser-utils";
 import { runN1BrowseLoop } from "@/lib/agent/nodes/n1-browse-core";
 import { emitAgentEvent } from "@/lib/agent/stream-events";
@@ -127,7 +128,9 @@ export async function browserPipelineNode(
     applyNavigationTimeouts(context, page);
     await installSingleTabNavigation(context);
     await page.setViewportSize(VIEWPORT);
-    await page.goto(taskState.url, { waitUntil: "domcontentloaded" });
+    await retryNavigation(() =>
+      page.goto(taskState.url, { waitUntil: "domcontentloaded" }),
+    );
 
     let screenshotDataUrl: string | undefined;
     try {

@@ -3,6 +3,7 @@ import {
   applyNavigationTimeouts,
   capturePageScreenshotDataUrl,
   installSingleTabNavigation,
+  retryNavigation,
 } from "@/lib/agent/browser-utils";
 import { setAgentRuntimeSession } from "@/lib/agent/runtime-session";
 import { emitAgentEvent } from "@/lib/agent/stream-events";
@@ -88,7 +89,9 @@ export async function browserOpenNode(state: AgentState): Promise<AgentState> {
     applyNavigationTimeouts(context, page);
     await installSingleTabNavigation(context);
     await page.setViewportSize(VIEWPORT);
-    await page.goto(state.selectedUrl, { waitUntil: "domcontentloaded" });
+    await retryNavigation(() =>
+      page.goto(state.selectedUrl, { waitUntil: "domcontentloaded" }),
+    );
 
     const cdpSession = await page.context().newCDPSession(page);
     const frameTree = await cdpSession.send("Page.getFrameTree");
