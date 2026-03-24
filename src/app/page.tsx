@@ -22,9 +22,13 @@ export default function Home() {
 
   const [showModal, setShowModal] = useState(false);
 
+  // Show the modal only after the search has finished (isLoading → false)
+  // so it never obscures the live agent workspace or appears before results.
+  // For instant failures (e.g. 429 rate-limit), isLoading is already false
+  // when the error is set, so the modal still appears immediately.
   useEffect(() => {
-    if (error) setShowModal(true);
-  }, [error]);
+    if (error && !isLoading) setShowModal(true);
+  }, [error, isLoading]);
 
   const validTickets = tickets.filter((t) => {
     const isUnknown = (v: string) => !v || v.toLowerCase() === "unknown";
