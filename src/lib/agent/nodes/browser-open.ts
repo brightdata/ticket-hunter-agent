@@ -3,7 +3,7 @@ import {
   applyNavigationTimeouts,
   capturePageScreenshotDataUrl,
   installSingleTabNavigation,
-  retryNavigation,
+  navigateWithRecovery,
 } from "@/lib/agent/browser-utils";
 import { setAgentRuntimeSession } from "@/lib/agent/runtime-session";
 import { emitAgentEvent } from "@/lib/agent/stream-events";
@@ -89,8 +89,16 @@ export async function browserOpenNode(state: AgentState): Promise<AgentState> {
     applyNavigationTimeouts(context, page);
     await installSingleTabNavigation(context);
     await page.setViewportSize(VIEWPORT);
-    await retryNavigation(() =>
-      page.goto(state.selectedUrl, { waitUntil: "domcontentloaded" }),
+    await navigateWithRecovery(
+      page,
+      () => page.goto(state.selectedUrl, { waitUntil: "domcontentloaded" }),
+      {
+        onStatus: (message) =>
+          emitAgentEvent({
+            type: "status",
+            message,
+          }),
+      },
     );
 
     const cdpSession = await page.context().newCDPSession(page);

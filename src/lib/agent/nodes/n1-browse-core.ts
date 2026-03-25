@@ -130,7 +130,14 @@ export async function runN1BrowseLoop(
         }
 
         const actionDescription = describeToolCall(toolCall);
-        activePage = await executeN1Action(activePage, toolCall, VIEWPORT);
+        activePage = await executeN1Action(activePage, toolCall, VIEWPORT, {
+          onStatus: (message) =>
+            emitAgentEvent({
+              type: "status",
+              message,
+              source,
+            }),
+        });
         activePage = await ensureUsablePage(activePage);
         stepCount += 1;
         currentUrl = activePage.url();

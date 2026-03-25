@@ -1,9 +1,13 @@
 import type { Page } from "playwright-core";
-import { retryNavigation } from "@/lib/agent/browser-utils";
+import { navigateWithRecovery } from "@/lib/agent/browser-utils";
 
 export interface ViewportSize {
   w: number;
   h: number;
+}
+
+interface NavigationStatusOptions {
+  onStatus?: (message: string) => void;
 }
 
 const N1_COORDINATE_SPACE = 1000;
@@ -353,6 +357,7 @@ function parseAction(action: unknown): ParsedAction {
 async function resolveActivePageAfterPopup(
   page: Page,
   popup: Page,
+  options?: NavigationStatusOptions,
 ): Promise<Page> {
   await popup
     .waitForLoadState("domcontentloaded", { timeout: POPUP_LOAD_TIMEOUT_MS })
@@ -372,8 +377,10 @@ async function resolveActivePageAfterPopup(
   if (!page.isClosed() && popupUrl && popupUrl !== "about:blank") {
     try {
       if (popupUrl !== page.url()) {
-        await retryNavigation(() =>
-          page.goto(popupUrl, { waitUntil: "domcontentloaded" }),
+        await navigateWithRecovery(
+          page,
+          () => page.goto(popupUrl, { waitUntil: "domcontentloaded" }),
+          { onStatus: options?.onStatus },
         );
       }
       await popup.close().catch(() => {});
@@ -462,13 +469,16 @@ async function clickInCurrentPage(
   options: {
     button: "left" | "right";
     clickCount: number;
-  },
+  } & NavigationStatusOptions,
 ): Promise<Page> {
   const usablePage = await ensureUsablePage(page);
   const anchorCandidate = await findAnchorNavigationCandidate(usablePage, point);
   if (anchorCandidate && isDirectNavigationUrl(anchorCandidate.href)) {
-    await retryNavigation(() =>
-      usablePage.goto(anchorCandidate.href, { waitUntil: "domcontentloaded" }),
+    await navigateWithRecovery(
+      usablePage,
+      () =>
+        usablePage.goto(anchorCandidate.href, { waitUntil: "domcontentloaded" }),
+      { onStatus: options.onStatus },
     );
     return ensureUsablePage(usablePage);
   }
@@ -492,7 +502,9 @@ async function clickInCurrentPage(
     await new Promise((resolve) => setTimeout(resolve, POPUP_SETTLE_MS));
 
     if (popup) {
-      return resolveActivePageAfterPopup(usablePage, popup);
+      return resolveActivePageAfterPopup(usablePage, popup, {
+        onStatus: options.onStatus,
+      });
     }
     return ensureUsablePage(usablePage);
   } finally {
@@ -505,6 +517,7 @@ export async function executeN1Action(
   page: Page,
   action: unknown,
   viewport: ViewportSize,
+  options?: NavigationStatusOptions,
 ): Promise<Page> {
   const parsed = parseAction(action);
   const { type, args } = parsed;
@@ -514,21 +527,33 @@ export async function executeN1Action(
     const point =
       getPoint(args, viewport, ["x"], ["y"], ["coordinates"]) ??
       getPointOrCenter(args, viewport);
-    return clickInCurrentPage(activePage, point, { button: "left", clickCount: 1 });
+    return clickInCurrentPage(activePage, point, {
+      button: "left",
+      clickCount: 1,
+      onStatus: options?.onStatus,
+    });
   }
 
   if (type === "double_click") {
     const point =
       getPoint(args, viewport, ["x"], ["y"], ["coordinates"]) ??
       getPointOrCenter(args, viewport);
-    return clickInCurrentPage(activePage, point, { button: "left", clickCount: 2 });
+    return clickInCurrentPage(activePage, point, {
+      button: "left",
+      clickCount: 2,
+      onStatus: options?.onStatus,
+    });
   }
 
   if (type === "triple_click") {
     const point =
       getPoint(args, viewport, ["x"], ["y"], ["coordinates"]) ??
       getPointOrCenter(args, viewport);
-    return clickInCurrentPage(activePage, point, { button: "left", clickCount: 3 });
+    return clickInCurrentPage(activePage, point, {
+      button: "left",
+      clickCount: 3,
+      onStatus: options?.onStatus,
+    });
   }
 
   if (type === "right_click") {
@@ -545,6 +570,7 @@ export async function executeN1Action(
       activePage = await clickInCurrentPage(activePage, point, {
         button: "left",
         clickCount: 1,
+        onStatus: options?.onStatus,
       });
     }
 
@@ -675,19 +701,29 @@ export async function executeN1Action(
       throw new Error("goto_url action is missing URL.");
     }
 
-    await retryNavigation(() =>
-      activePage.goto(url, { waitUntil: "domcontentloaded" }),
+    await navigateWithRecovery(
+      activePage,
+      () => activePage.goto(url, { waitUntil: "domcontentloaded" }),
+      { onStatus: options?.onStatus },
     );
     return ensureUsablePage(activePage);
   }
 
   if (type === "go_back") {
-    await activePage.goBack({ waitUntil: "domcontentloaded" });
+    await navigateWithRecovery(
+      activePage,
+      () => activePage.goBack({ waitUntil: "domcontentloaded" }),
+      { onStatus: options?.onStatus },
+    );
     return ensureUsablePage(activePage);
   }
 
   if (type === "refresh") {
-    await activePage.reload({ waitUntil: "domcontentloaded" });
+    await navigateWithRecovery(
+      activePage,
+      () => activePage.reload({ waitUntil: "domcontentloaded" }),
+      { onStatus: options?.onStatus },
+    );
     return ensureUsablePage(activePage);
   }
 
