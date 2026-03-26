@@ -11,6 +11,10 @@ import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
+
+const AGENT_TIMEOUT_MS = 250_0000;
+const MAX_RETRIES = 1;
 
 type SearchRequestBody = {
   query?: unknown;
@@ -171,36 +175,92 @@ export async function POST(request: Request): Promise<Response> {
           await clearAgentRuntimeSession();
 
           const initialState = createInitialAgentState(query);
-          const finalState = await runWithAgentEventEmitter(
-            forwardAgentEvent,
-            async () => runTicketHunterAgent(initialState),
-          );
 
-          const hasTickets = finalState.tickets.length > 0;
-          const hasAnswer = Boolean(finalState.finalAnswer);
+          let finalState: typeof initialState;
+          let timedOut = false;
+          let attempt = 0;
+
+          const runAgentAttempt = async (): Promise<typeof initialState> => {
+            return Promise.race([
+              runWithAgentEventEmitter(
+                forwardAgentEvent,
+                async () => runTicketHunterAgent(createInitialAgentState(query)),
+              ),
+              new Promise<never>((_, reject) =>
+                setTimeout(
+                  () => reject(new Error("__AGENT_TIMEOUT__")),
+                  AGENT_TIMEOUT_MS,
+                ),
+              ),
+            ]);
+          };
+
+          while (attempt <= MAX_RETRIES) {
+            try {
+              finalState = await runAgentAttempt();
+            } catch (raceError) {
+              const isTimeout =
+                raceError instanceof Error &&
+                raceError.message === "__AGENT_TIMEOUT__";
+              if (!isTimeout) throw raceError;
+
+              timedOut = true;
+              log(
+                "warn",
+                `Agent timed out after ${AGENT_TIMEOUT_MS / 1000}s (attempt ${attempt + 1}). Returning partial results.`,
+              );
+              finalState = {
+                ...initialState,
+                error: "Search timed out. Returning partial results.",
+              };
+            }
+
+            const hasResults = finalState!.tickets.length > 0 || Boolean(finalState!.finalAnswer);
+
+            if (hasResults || attempt >= MAX_RETRIES || timedOut) {
+              break;
+            }
+
+            attempt++;
+            log("info", `No results on attempt ${attempt}. Retrying search...`);
+            safelySend({
+              type: "status",
+              message: `No results found, retrying search (attempt ${attempt + 1})...`,
+            });
+            await clearAgentRuntimeSession();
+          }
+
+          const hasTickets = finalState!.tickets.length > 0;
+          const hasAnswer = Boolean(finalState!.finalAnswer);
 
           if (hasTickets || hasAnswer) {
             safelySend({
               type: "result",
-              tickets: finalState.tickets,
-              finalAnswer: finalState.finalAnswer,
+              tickets: finalState!.tickets,
+              finalAnswer: finalState!.finalAnswer,
             });
           }
 
-          if (finalState.error) {
+          if (timedOut && !hasTickets && !hasAnswer) {
+            safelySend({
+              type: "error",
+              message:
+                "Search took too long and no results were collected. Please try again.",
+            });
+          } else if (finalState!.error && !timedOut) {
             log("warn", "Agent completed with error.", {
-              error: finalState.error,
-              stepCount: finalState.stepCount,
+              error: finalState!.error,
+              stepCount: finalState!.stepCount,
               hadResults: hasTickets || hasAnswer,
             });
             if (!hasTickets && !hasAnswer && !sentError) {
-              safelySend({ type: "error", message: finalState.error });
+              safelySend({ type: "error", message: finalState!.error });
             }
           } else {
             log("info", "Agent completed successfully.", {
-              ticketCount: finalState.tickets.length,
-              stepCount: finalState.stepCount,
-              hasInspectUrl: Boolean(finalState.inspectUrl),
+              ticketCount: finalState!.tickets.length,
+              stepCount: finalState!.stepCount,
+              hasInspectUrl: Boolean(finalState!.inspectUrl),
             });
           }
         } catch (error) {

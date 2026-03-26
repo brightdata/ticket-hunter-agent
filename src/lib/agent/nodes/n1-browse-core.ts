@@ -6,14 +6,26 @@ import type { ChatMessage } from "@/lib/n1-client";
 import { callN1 } from "@/lib/n1-client";
 
 const SYSTEM_PROMPT = [
-  "You are a web browsing agent specialized in finding ticket information.",
-  "Navigate the page to find available tickets, their prices, seat locations, and availability.",
+  "You are a web browsing agent specialized in finding ticket information on ticket marketplace websites.",
+  "Your goal is to extract concrete ticket listings with prices from the current page.",
+  "",
+  "BROWSING STRATEGY:",
+  "1. When a page loads, first scroll down to find the ticket listings section — tickets are often below the fold.",
+  "2. Look for ticket listings, price tables, seat maps, or 'Buy Tickets' sections.",
+  "3. If you see a list of tickets with prices, sections, and rows — you have what you need.",
+  "4. If the page shows a seat map or interactive selector, click on different sections to reveal prices.",
+  "5. If there is a 'Show More', 'Load More', or 'View All' button for tickets, click it.",
+  "6. Do NOT stop after just one action — always verify you can see actual ticket prices before stopping.",
+  "7. If the page requires accepting cookies or dismissing a modal, do that first.",
+  "",
+  "IMPORTANT: Do NOT give up after a single 'wait' action. If you don't see ticket prices yet, scroll down, click on ticket sections, or interact with the page to reveal them.",
+  "",
   "When you provide your final findings, include event metadata: event name, event date, venue, and city.",
   "For each ticket option, include ticket type, section, row, seats, quantity, price, currency, platform, URL, and notes.",
   "If any field is unavailable, explicitly write Unknown.",
   "Stop as soon as you have gathered enough ticket information to answer the user's query.",
   "When you see '[Steps remaining: N]' and N <= 3, stop and compile your findings.",
-].join(" ");
+].join("\n");
 
 const VIEWPORT = {
   w: 1280,
@@ -28,6 +40,7 @@ export interface N1BrowseTaskState {
   finalAnswer: string | null;
   status: string;
   source?: string;
+  signal?: AbortSignal;
 }
 
 export interface N1BrowseTaskResult {
@@ -83,6 +96,7 @@ export async function runN1BrowseLoop(
   taskState: N1BrowseTaskState,
 ): Promise<N1BrowseTaskResult> {
   const source = taskState.source;
+  const signal = taskState.signal;
   let activePage = page;
 
   emitAgentEvent({
@@ -100,6 +114,11 @@ export async function runN1BrowseLoop(
 
   try {
     while (stepCount < taskState.maxSteps) {
+      if (signal?.aborted) {
+        status = "Browse loop cancelled due to timeout.";
+        emitAgentEvent({ type: "status", message: status, source });
+        break;
+      }
       const stepsRemaining = Math.max(taskState.maxSteps - stepCount, 0);
       const response = await callN1([
         ...messages,
@@ -125,7 +144,7 @@ export async function runN1BrowseLoop(
       }
 
       for (const toolCall of response.tool_calls) {
-        if (stepCount >= taskState.maxSteps) {
+        if (stepCount >= taskState.maxSteps || signal?.aborted) {
           break;
         }
 
@@ -197,7 +216,7 @@ export async function runN1BrowseLoop(
       }
     }
 
-    if (!finalAnswer && stepCount >= taskState.maxSteps) {
+    if (!finalAnswer && stepCount >= taskState.maxSteps && !signal?.aborted) {
       const finalizeResponse = await callN1([
         ...messages,
         {

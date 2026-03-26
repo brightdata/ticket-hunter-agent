@@ -11,8 +11,10 @@ const CAPTCHA_SOLVE_TIMEOUT_MS = 45_000;
 const CAPTCHA_POLL_MS = 500;
 const CAPTCHA_SETTLE_MS = 1_500;
 const BLOCK_TEXT_SAMPLE_LIMIT = 4_000;
-const RETRY_DELAYS_MS = [2_000, 5_000, 10_000, 20_000];
-const COOLDOWN_RETRY_DELAYS_MS = [15_000, 30_000, 60_000, 90_000];
+const RETRY_DELAYS_MS = [2_000, 5_000, 10_000];
+const COOLDOWN_RETRY_DELAYS_MS = [15_000, 30_000, 60_000];
+const FAST_RETRY_DELAYS_MS = [1_000, 3_000, 7_000];
+const FAST_COOLDOWN_RETRY_DELAYS_MS = [0, 2_000, 5_000];
 const BLOCKED_STATUS_CODES = new Set([403, 429, 430, 503, 520, 521, 522, 523]);
 const HARD_BLOCK_PATTERNS = [
   "captcha",
@@ -47,11 +49,19 @@ type RetryNavigationOptions = {
     attempt: number;
     delayMs: number;
     error: string;
+    cause: unknown;
   }) => void | Promise<void>;
+  signal?: AbortSignal;
+  getRetryDelays?: (error: unknown) => number[];
 };
 
 export type NavigateWithRecoveryOptions = RetryNavigationOptions & {
   onStatus?: (message: string) => void;
+  recoverPage?: (details: {
+    attempt: number;
+    error: unknown;
+    page: Page;
+  }) => Promise<Page>;
 };
 
 type CaptchaCounts = {
@@ -76,6 +86,13 @@ export class RetryableNavigationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "RetryableNavigationError";
+  }
+}
+
+export class NavigationAbortedError extends Error {
+  constructor(message = "Navigation aborted.") {
+    super(message);
+    this.name = "NavigationAbortedError";
   }
 }
 
@@ -126,8 +143,37 @@ export function applyNavigationTimeouts(
   page.setDefaultNavigationTimeout(NAVIGATION_TIMEOUT_MS);
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw new NavigationAbortedError();
+  }
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  if (ms <= 0) {
+    throwIfAborted(signal);
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+
+    const onAbort = () => {
+      clearTimeout(timeoutId);
+      signal?.removeEventListener("abort", onAbort);
+      reject(new NavigationAbortedError());
+    };
+
+    if (signal?.aborted) {
+      onAbort();
+      return;
+    }
+
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 function cloneCounts(counts: CaptchaCounts): CaptchaCounts {
@@ -181,6 +227,10 @@ async function ensureCaptchaTracker(page: Page): Promise<CaptchaTracker> {
 }
 
 function isRetryableNavigationError(error: unknown): boolean {
+  if (error instanceof NavigationAbortedError) {
+    return false;
+  }
+
   if (error instanceof RetryableNavigationError) {
     return true;
   }
@@ -192,6 +242,8 @@ function isRetryableNavigationError(error: unknown): boolean {
     msg.includes("no_peers") ||
     msg.includes("ERR_CONNECTION_RESET") ||
     msg.includes("ERR_CONNECTION_CLOSED") ||
+    msg.includes("ERR_TUNNEL_CONNECTION_FAILED") ||
+    msg.includes("ERR_PROXY_CONNECTION_FAILED") ||
     msg.includes("Target closed") ||
     msg.includes("Session closed")
   );
@@ -210,6 +262,13 @@ function getRetryDelaysForError(error: unknown): number[] {
   }
 
   return RETRY_DELAYS_MS;
+}
+
+export function isNavigationAbortedError(error: unknown): boolean {
+  return (
+    error instanceof NavigationAbortedError ||
+    (error instanceof Error && error.name === "NavigationAbortedError")
+  );
 }
 
 function describeBlockIndicators(text: string): string | null {
@@ -234,7 +293,9 @@ async function waitForCaptchaOutcome(
   tracker: CaptchaTracker,
   baseline: CaptchaCounts,
   onStatus?: (message: string) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
+  throwIfAborted(signal);
   const initial = tracker.snapshot();
   if (initial.detected <= baseline.detected) {
     return;
@@ -244,6 +305,7 @@ async function waitForCaptchaOutcome(
 
   const startedAt = Date.now();
   while (Date.now() - startedAt < CAPTCHA_SOLVE_TIMEOUT_MS) {
+    throwIfAborted(signal);
     const current = tracker.snapshot();
 
     if (current.solveFailed > baseline.solveFailed) {
@@ -254,11 +316,11 @@ async function waitForCaptchaOutcome(
 
     if (current.solveFinished > baseline.solveFinished) {
       onStatus?.("Bright Data captcha solved. Validating page state.");
-      await sleep(CAPTCHA_SETTLE_MS);
+      await sleep(CAPTCHA_SETTLE_MS, signal);
       return;
     }
 
-    await sleep(CAPTCHA_POLL_MS);
+    await sleep(CAPTCHA_POLL_MS, signal);
   }
 
   throw new RetryableNavigationError(
@@ -307,10 +369,15 @@ export async function retryNavigation<T>(
     typeof options === "number" ? { retries: options } : options;
 
   for (let attempt = 0; ; attempt++) {
+    throwIfAborted(resolvedOptions?.signal);
+
     try {
       return await fn();
     } catch (error) {
-      const retryDelays = getRetryDelaysForError(error);
+      throwIfAborted(resolvedOptions?.signal);
+
+      const retryDelays =
+        resolvedOptions?.getRetryDelays?.(error) ?? getRetryDelaysForError(error);
       const retries = resolvedOptions?.retries ?? retryDelays.length;
       if (attempt >= retries || !isRetryableNavigationError(error)) {
         throw error;
@@ -320,8 +387,9 @@ export async function retryNavigation<T>(
         attempt,
         delayMs: delay,
         error: error instanceof Error ? error.message : String(error),
+        cause: error,
       });
-      await sleep(delay);
+      await sleep(delay, resolvedOptions?.signal);
     }
   }
 }
@@ -331,22 +399,55 @@ export async function navigateWithRecovery(
   navigate: () => Promise<PlaywrightResponse | null>,
   options?: NavigateWithRecoveryOptions,
 ): Promise<PlaywrightResponse | null> {
-  const tracker = await ensureCaptchaTracker(page);
+  let activePage = page;
 
   return retryNavigation(
     async () => {
+      const tracker = await ensureCaptchaTracker(activePage);
       const baseline = tracker.snapshot();
       const response = await navigate();
-      await waitForCaptchaOutcome(tracker, baseline, options?.onStatus);
-      await assertPageIsNotBlocked(page, response);
+      await waitForCaptchaOutcome(
+        tracker,
+        baseline,
+        options?.onStatus,
+        options?.signal,
+      );
+      await assertPageIsNotBlocked(activePage, response);
       return response;
     },
     {
       retries: options?.retries,
-      onRetry: async ({ attempt, delayMs, error }) => {
-        await options?.onRetry?.({ attempt, delayMs, error });
+      signal: options?.signal,
+      getRetryDelays: (error) =>
+        options?.getRetryDelays?.(error) ??
+        (options?.recoverPage
+          ? isCooldownNavigationError(error)
+            ? FAST_COOLDOWN_RETRY_DELAYS_MS
+            : FAST_RETRY_DELAYS_MS
+          : getRetryDelaysForError(error)),
+      onRetry: async ({ attempt, delayMs, error, cause }) => {
+        let usedFreshSession = false;
+
+        if (options?.recoverPage) {
+          activePage = await options.recoverPage({
+            attempt,
+            error: cause,
+            page: activePage,
+          });
+          usedFreshSession = true;
+        }
+
+        await options?.onRetry?.({ attempt, delayMs, error, cause });
+
+        const retryTiming =
+          delayMs > 0
+            ? `Retrying in ${Math.ceil(delayMs / 1000)}s.`
+            : "Retrying now.";
+        const recoveryNote = usedFreshSession
+          ? " Opened a fresh browser session."
+          : "";
         options?.onStatus?.(
-          `Navigation attempt ${attempt + 1} failed: ${error} Retrying in ${Math.ceil(delayMs / 1000)}s.`,
+          `Navigation attempt ${attempt + 1} failed: ${error}.${recoveryNote} ${retryTiming}`.trim(),
         );
       },
     },

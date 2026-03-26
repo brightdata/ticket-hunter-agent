@@ -17,6 +17,7 @@ import { extractTicketsWithOpenRouter } from "@/lib/openrouter-client";
 import type { TicketResult } from "@/lib/types";
 
 const VIEWPORT = { width: 1280, height: 800 };
+const PER_SOURCE_TIMEOUT_MS = 120_000;
 
 function withSource(platform: string, message: string): string {
   return `[${platform}] ${message}`;
@@ -34,7 +35,8 @@ function buildInitialMessage(args: {
       text: [
         `Task: Find the best available tickets for "${query}".`,
         `You are currently on: ${currentUrl}`,
-        "Use the webpage to gather ticket prices, seat locations, and availability.",
+        "Scroll down the page to find the ticket listings section. Look for prices, sections, rows, and seat availability.",
+        "If tickets are not immediately visible, scroll down or interact with the page to reveal them.",
       ].join("\n"),
     },
   ];
@@ -118,6 +120,12 @@ export async function browserPipelineNode(
   }
 
   let browser: Awaited<ReturnType<typeof chromium.connectOverCDP>> | null = null;
+  const abortController = new AbortController();
+  const { signal } = abortController;
+
+  const timeoutId = setTimeout(() => {
+    abortController.abort();
+  }, PER_SOURCE_TIMEOUT_MS);
 
   try {
     logStatus(`Connecting browser to ${taskState.url}`);
@@ -162,6 +170,7 @@ export async function browserPipelineNode(
       finalAnswer: seedFinalAnswer,
       status: "N1 browse loop started.",
       source: platform,
+      signal,
     });
 
     if (browseResult.error) {
@@ -181,6 +190,14 @@ export async function browserPipelineNode(
         tickets: [
           buildFallbackResult(platform, fallbackUrl, "No final answer available."),
         ],
+        statusLog,
+      };
+    }
+
+    if (signal.aborted) {
+      logStatus("Timeout reached after browse loop; skipping ticket extraction.");
+      return {
+        tickets: [buildFallbackResult(platform, fallbackUrl, finalAnswer)],
         statusLog,
       };
     }
@@ -219,10 +236,17 @@ export async function browserPipelineNode(
     const message = error instanceof Error ? error.message : "Unknown error";
     logStatus(`Browser pipeline failed: ${message}`);
     return {
-      tickets: [],
+      tickets: [
+        buildFallbackResult(
+          platform,
+          taskState.url,
+          `Browser pipeline failed: ${message}`,
+        ),
+      ],
       statusLog,
     };
   } finally {
+    clearTimeout(timeoutId);
     if (browser) {
       await browser.close().catch(() => {});
     }
