@@ -20,6 +20,8 @@ const SYSTEM_PROMPT = [
   "",
   "IMPORTANT: Do NOT give up after a single 'wait' action. If you don't see ticket prices yet, scroll down, click on ticket sections, or interact with the page to reveal them.",
   "",
+  "CRITICAL: Do NOT navigate away from the current page to a different event or URL. Stay on this page and extract ticket information from it. If a navigation fails, do NOT retry — just continue gathering data from the current page.",
+  "",
   "When you provide your final findings, include event metadata: event name, event date, venue, and city.",
   "For each ticket option, include ticket type, section, row, seats, quantity, price, currency, platform, URL, and notes.",
   "If any field is unavailable, explicitly write Unknown.",
@@ -149,14 +151,32 @@ export async function runN1BrowseLoop(
         }
 
         const actionDescription = describeToolCall(toolCall);
-        activePage = await executeN1Action(activePage, toolCall, VIEWPORT, {
-          onStatus: (message) =>
-            emitAgentEvent({
-              type: "status",
-              message,
-              source,
-            }),
-        });
+        let actionError: string | null = null;
+        try {
+          activePage = await executeN1Action(activePage, toolCall, VIEWPORT, {
+            onStatus: (message) =>
+              emitAgentEvent({
+                type: "status",
+                message,
+                source,
+              }),
+            signal,
+          });
+        } catch (navError) {
+          if (
+            navError instanceof Error &&
+            navError.name === "NavigationAbortedError"
+          ) {
+            break;
+          }
+          actionError =
+            navError instanceof Error ? navError.message : String(navError);
+          emitAgentEvent({
+            type: "status",
+            message: `Action "${actionDescription}" failed: ${actionError}. Continuing browse loop.`,
+            source,
+          });
+        }
         activePage = await ensureUsablePage(activePage);
         stepCount += 1;
         currentUrl = activePage.url();
@@ -169,8 +189,15 @@ export async function runN1BrowseLoop(
             role: "tool",
             tool_call_id: toolCallId,
             content: JSON.stringify({
-              status: "ok",
+              status: actionError ? "error" : "ok",
               current_url: currentUrl,
+              ...(actionError
+                ? {
+                    error: actionError,
+                    instruction:
+                      "Navigation failed. Do NOT retry this URL. Continue gathering ticket information from the current page instead.",
+                  }
+                : {}),
             }),
           });
         }
@@ -216,27 +243,34 @@ export async function runN1BrowseLoop(
       }
     }
 
-    if (!finalAnswer && stepCount >= taskState.maxSteps && !signal?.aborted) {
-      const finalizeResponse = await callN1([
-        ...messages,
-        {
-          role: "user",
-          content:
-            "[Steps remaining: 0] Stop browsing now and provide your final ticket findings.",
-        },
-      ]);
+    if (!finalAnswer && (stepCount >= taskState.maxSteps || signal?.aborted)) {
+      try {
+        const finalizeResponse = await callN1([
+          ...messages,
+          {
+            role: "user",
+            content:
+              "[Steps remaining: 0] Stop browsing now and provide your final ticket findings based on everything you have seen so far.",
+          },
+        ]);
 
-      messages.push({
-        role: "assistant",
-        content: finalizeResponse.content,
-        tool_calls: finalizeResponse.tool_calls,
-      });
+        messages.push({
+          role: "assistant",
+          content: finalizeResponse.content,
+          tool_calls: finalizeResponse.tool_calls,
+        });
 
-      finalAnswer =
-        finalizeResponse.content ||
-        "Maximum step limit reached before a final answer was produced.";
-      status = `Reached max browsing steps (${taskState.maxSteps}). Finalized response.`;
-      emitAgentEvent({ type: "status", message: status, source });
+        finalAnswer =
+          finalizeResponse.content ||
+          "Maximum step limit reached before a final answer was produced.";
+        const reason = signal?.aborted ? "timeout" : "max steps";
+        status = `Finalized response due to ${reason} after ${stepCount} steps.`;
+        emitAgentEvent({ type: "status", message: status, source });
+      } catch (finalizeError) {
+        const msg = finalizeError instanceof Error ? finalizeError.message : "Unknown error";
+        status = `Failed to finalize after ${stepCount} steps: ${msg}`;
+        emitAgentEvent({ type: "status", message: status, source });
+      }
     }
 
     return {

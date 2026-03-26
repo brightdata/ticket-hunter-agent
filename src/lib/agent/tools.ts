@@ -8,6 +8,7 @@ export interface ViewportSize {
 
 interface NavigationStatusOptions {
   onStatus?: (message: string) => void;
+  signal?: AbortSignal;
 }
 
 const N1_COORDINATE_SPACE = 1000;
@@ -380,7 +381,7 @@ async function resolveActivePageAfterPopup(
         await navigateWithRecovery(
           page,
           () => page.goto(popupUrl, { waitUntil: "domcontentloaded" }),
-          { onStatus: options?.onStatus },
+          { onStatus: options?.onStatus, signal: options?.signal, retries: 0 },
         );
       }
       await popup.close().catch(() => {});
@@ -478,7 +479,7 @@ async function clickInCurrentPage(
       usablePage,
       () =>
         usablePage.goto(anchorCandidate.href, { waitUntil: "domcontentloaded" }),
-      { onStatus: options.onStatus },
+      { onStatus: options.onStatus, signal: options.signal, retries: 0 },
     );
     return ensureUsablePage(usablePage);
   }
@@ -504,6 +505,7 @@ async function clickInCurrentPage(
     if (popup) {
       return resolveActivePageAfterPopup(usablePage, popup, {
         onStatus: options.onStatus,
+        signal: options.signal,
       });
     }
     return ensureUsablePage(usablePage);
@@ -704,7 +706,7 @@ export async function executeN1Action(
     await navigateWithRecovery(
       activePage,
       () => activePage.goto(url, { waitUntil: "domcontentloaded" }),
-      { onStatus: options?.onStatus },
+      { onStatus: options?.onStatus, signal: options?.signal, retries: 0 },
     );
     return ensureUsablePage(activePage);
   }
@@ -713,7 +715,7 @@ export async function executeN1Action(
     await navigateWithRecovery(
       activePage,
       () => activePage.goBack({ waitUntil: "domcontentloaded" }),
-      { onStatus: options?.onStatus },
+      { onStatus: options?.onStatus, signal: options?.signal, retries: 0 },
     );
     return ensureUsablePage(activePage);
   }
@@ -722,7 +724,7 @@ export async function executeN1Action(
     await navigateWithRecovery(
       activePage,
       () => activePage.reload({ waitUntil: "domcontentloaded" }),
-      { onStatus: options?.onStatus },
+      { onStatus: options?.onStatus, signal: options?.signal, retries: 0 },
     );
     return ensureUsablePage(activePage);
   }

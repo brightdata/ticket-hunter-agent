@@ -6,7 +6,7 @@ import type {
 } from "playwright-core";
 
 const SCREENSHOT_TIMEOUT_MS = 5_000;
-export const NAVIGATION_TIMEOUT_MS = 90_000;
+export const NAVIGATION_TIMEOUT_MS = 120_000;
 const CAPTCHA_SOLVE_TIMEOUT_MS = 45_000;
 const CAPTCHA_POLL_MS = 500;
 const CAPTCHA_SETTLE_MS = 1_500;

@@ -17,7 +17,7 @@ import { extractTicketsWithOpenRouter } from "@/lib/openrouter-client";
 import type { TicketResult } from "@/lib/types";
 
 const VIEWPORT = { width: 1280, height: 800 };
-const PER_SOURCE_TIMEOUT_MS = 120_000;
+const PER_SOURCE_TIMEOUT_MS = 150_000;
 
 function withSource(platform: string, message: string): string {
   return `[${platform}] ${message}`;
@@ -130,8 +130,8 @@ export async function browserPipelineNode(
   try {
     logStatus(`Connecting browser to ${taskState.url}`);
     browser = await chromium.connectOverCDP(cdpUrl);
-    const context = browser.contexts()[0] ?? (await browser.newContext());
-    const page = context.pages()[0] ?? (await context.newPage());
+    let context = browser.contexts()[0] ?? (await browser.newContext());
+    let page = context.pages()[0] ?? (await context.newPage());
 
     applyNavigationTimeouts(context, page);
     await installSingleTabNavigation(context);
@@ -141,6 +141,18 @@ export async function browserPipelineNode(
       () => page.goto(taskState.url, { waitUntil: "domcontentloaded" }),
       {
         onStatus: (message) => logStatus(message),
+        signal,
+        async recoverPage({ attempt }) {
+          logStatus(`Opening fresh browser session (attempt ${attempt + 2})...`);
+          await browser?.close().catch(() => {});
+          browser = await chromium.connectOverCDP(cdpUrl);
+          context = browser.contexts()[0] ?? (await browser.newContext());
+          page = context.pages()[0] ?? (await context.newPage());
+          applyNavigationTimeouts(context, page);
+          await installSingleTabNavigation(context);
+          await page.setViewportSize(VIEWPORT);
+          return page;
+        },
       },
     );
 
@@ -194,15 +206,11 @@ export async function browserPipelineNode(
       };
     }
 
-    if (signal.aborted) {
-      logStatus("Timeout reached after browse loop; skipping ticket extraction.");
-      return {
-        tickets: [buildFallbackResult(platform, fallbackUrl, finalAnswer)],
-        statusLog,
-      };
-    }
-
+    // Always attempt structured extraction if we have a finalAnswer,
+    // even after timeout — the OpenRouter call is a fast API request
+    // that doesn't need the browser.
     try {
+      logStatus("Extracting structured ticket data from browse results...");
       const tickets = await extractTicketsWithOpenRouter({
         query: taskState.query,
         finalAnswer,
