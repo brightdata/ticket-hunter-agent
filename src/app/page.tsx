@@ -44,10 +44,10 @@ export default function Home() {
         <div className="mx-auto flex max-w-7xl items-center justify-center px-6 py-3">
           <div className="flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brightdata.svg" alt="Bright Data" className="h-8" />
+            <img src="/ticket-hunter/brightdata.svg" alt="Bright Data" className="h-8" />
             <span className="text-white/40">×</span>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/yutori.png" alt="Yutori" className="h-6" style={{ filter: "invert(1) brightness(2)" }} />
+            <img src="/ticket-hunter/yutori.png" alt="Yutori" className="h-6" style={{ filter: "invert(1) brightness(2)" }} />
           </div>
         </div>
       </nav>

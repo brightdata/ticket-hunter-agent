@@ -95,7 +95,7 @@ export function useTicketSearch(): TicketSearchHook {
       };
 
       try {
-        const res = await fetch("/api/search", {
+        const res = await fetch("/ticket-hunter/api/search", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query }),
