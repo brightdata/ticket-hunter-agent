@@ -1,5 +1,8 @@
 import type { Page } from "playwright-core";
-import { capturePageScreenshotDataUrl } from "@/lib/agent/browser-utils";
+import {
+  capturePageScreenshotDataUrl,
+  isNavigationAbortedError,
+} from "@/lib/agent/browser-utils";
 import { emitAgentEvent } from "@/lib/agent/stream-events";
 import { ensureUsablePage, executeN1Action } from "@/lib/agent/tools";
 import type { ChatMessage } from "@/lib/n1-client";
@@ -43,6 +46,7 @@ export interface N1BrowseTaskState {
   status: string;
   source?: string;
   signal?: AbortSignal;
+  recoverPage?: (page: Page) => Promise<Page>;
 }
 
 export interface N1BrowseTaskResult {
@@ -52,6 +56,23 @@ export interface N1BrowseTaskResult {
   finalAnswer: string | null;
   status: string;
   error: string | null;
+}
+
+const TUNNEL_ERROR_PATTERNS = [
+  "ERR_TUNNEL_CONNECTION_FAILED",
+  "ERR_CONNECTION_RESET",
+  "ERR_CONNECTION_CLOSED",
+  "ERR_PROXY_CONNECTION_FAILED",
+  "Target closed",
+  "Session closed",
+];
+
+const ACTION_RETRY_DELAY_MS = 2_000;
+const MAX_ACTION_RETRIES = 2;
+
+function isTunnelError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return TUNNEL_ERROR_PATTERNS.some((p) => error.message.includes(p));
 }
 
 function ensureSystemPrompt(messages: ChatMessage[]): ChatMessage[] {
@@ -152,30 +173,65 @@ export async function runN1BrowseLoop(
 
         const actionDescription = describeToolCall(toolCall);
         let actionError: string | null = null;
-        try {
-          activePage = await executeN1Action(activePage, toolCall, VIEWPORT, {
-            onStatus: (message) =>
+        let aborted = false;
+
+        for (let attempt = 0; attempt <= MAX_ACTION_RETRIES; attempt++) {
+          try {
+            activePage = await executeN1Action(activePage, toolCall, VIEWPORT, {
+              onStatus: (message) =>
+                emitAgentEvent({
+                  type: "status",
+                  message,
+                  source,
+                }),
+              signal,
+            });
+            actionError = null;
+            break;
+          } catch (navError) {
+            if (isNavigationAbortedError(navError)) {
+              aborted = true;
+              break;
+            }
+
+            actionError =
+              navError instanceof Error ? navError.message : String(navError);
+
+            if (
+              isTunnelError(navError) &&
+              attempt < MAX_ACTION_RETRIES &&
+              taskState.recoverPage
+            ) {
               emitAgentEvent({
                 type: "status",
-                message,
+                message: `Action "${actionDescription}" failed: ${actionError}. Recovering session (attempt ${attempt + 1}/${MAX_ACTION_RETRIES})...`,
                 source,
-              }),
-            signal,
-          });
-        } catch (navError) {
-          if (
-            navError instanceof Error &&
-            navError.name === "NavigationAbortedError"
-          ) {
+              });
+              await new Promise((r) => setTimeout(r, ACTION_RETRY_DELAY_MS));
+              try {
+                activePage = await taskState.recoverPage(activePage);
+              } catch {
+                emitAgentEvent({
+                  type: "status",
+                  message: `Session recovery failed. Continuing browse loop.`,
+                  source,
+                });
+                break;
+              }
+              continue;
+            }
+
+            emitAgentEvent({
+              type: "status",
+              message: `Action "${actionDescription}" failed: ${actionError}. Continuing browse loop.`,
+              source,
+            });
             break;
           }
-          actionError =
-            navError instanceof Error ? navError.message : String(navError);
-          emitAgentEvent({
-            type: "status",
-            message: `Action "${actionDescription}" failed: ${actionError}. Continuing browse loop.`,
-            source,
-          });
+        }
+
+        if (aborted) {
+          break;
         }
         activePage = await ensureUsablePage(activePage);
         stepCount += 1;

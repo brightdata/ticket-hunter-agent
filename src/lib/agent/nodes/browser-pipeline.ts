@@ -183,6 +183,26 @@ export async function browserPipelineNode(
       status: "N1 browse loop started.",
       source: platform,
       signal,
+      async recoverPage() {
+        logStatus("Recovering browser session with fresh connection...");
+        await browser?.close().catch(() => {});
+        browser = await chromium.connectOverCDP(cdpUrl);
+        context = browser.contexts()[0] ?? (await browser.newContext());
+        page = context.pages()[0] ?? (await context.newPage());
+        applyNavigationTimeouts(context, page);
+        await installSingleTabNavigation(context);
+        await page.setViewportSize(VIEWPORT);
+        await navigateWithRecovery(
+          page,
+          () => page.goto(taskState.url, { waitUntil: "domcontentloaded" }),
+          {
+            onStatus: (message) => logStatus(message),
+            signal,
+            retries: 2,
+          },
+        );
+        return page;
+      },
     });
 
     if (browseResult.error) {
