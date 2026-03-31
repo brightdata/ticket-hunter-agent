@@ -112,6 +112,114 @@ function parseTicketsFromOpenRouterContent(
     .filter((item): item is TicketResult => item !== null);
 }
 
+export async function rankSerpResultsWithLLM(
+  query: string,
+  candidates: { url: string; title: string; platform: string }[],
+): Promise<{ url: string; title: string; platform: string }[]> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    throw new Error("Missing OPENROUTER_API_KEY.");
+  }
+
+  const model = process.env.OPENROUTER_MODEL ?? DEFAULT_OPENROUTER_MODEL;
+
+  const candidateList = candidates
+    .map((c, i) => `${i + 1}. [${c.platform}] ${c.title} — ${c.url}`)
+    .join("\n");
+
+  const response = await fetch(OPENROUTER_ENDPOINT, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        {
+          role: "system",
+          content: [
+            "You are an expert at ranking ticket search results by relevance.",
+            "Given a user query and a numbered list of candidate ticket URLs, return a JSON object with a single field \"ranking\" containing an array of the candidate numbers (1-based) ordered from most relevant to least relevant.",
+            "Rank higher: direct event/ticket pages that closely match the query (artist, event, date, venue).",
+            "Rank lower: generic search pages, category pages, or results that don't match the query well.",
+            "Return ALL candidate numbers in the ranking, not just the top ones.",
+            "Return JSON ONLY.",
+          ].join(" "),
+        },
+        {
+          role: "user",
+          content: `User query: ${query}\n\nCandidates:\n${candidateList}`,
+        },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "serp_ranking",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              ranking: {
+                type: "array",
+                items: { type: "number" },
+              },
+            },
+            required: ["ranking"],
+            additionalProperties: false,
+          },
+        },
+      },
+    }),
+  });
+
+  const rawText = await response.text();
+  if (!response.ok) {
+    console.warn(
+      `[openrouter] ranking request failed (${response.status}), falling back to original order`,
+    );
+    return candidates;
+  }
+
+  const parsedResponse = parseJson(rawText);
+  const root = toRecord(parsedResponse);
+  const choices = Array.isArray(root?.choices) ? root.choices : [];
+  const firstChoice = choices[0];
+  const firstChoiceRecord = toRecord(firstChoice);
+  const message = toRecord(firstChoiceRecord?.message);
+  const content = message?.content;
+
+  const contentParsed = toRecord(
+    typeof content === "string" ? parseJson(content) : content,
+  );
+  const ranking = contentParsed?.ranking;
+
+  if (!Array.isArray(ranking)) {
+    console.warn("[openrouter] unexpected ranking format, falling back to original order");
+    return candidates;
+  }
+
+  const ranked: { url: string; title: string; platform: string }[] = [];
+  const seen = new Set<number>();
+
+  for (const idx of ranking) {
+    const i = typeof idx === "number" ? Math.round(idx) - 1 : -1;
+    if (i >= 0 && i < candidates.length && !seen.has(i)) {
+      seen.add(i);
+      ranked.push(candidates[i]);
+    }
+  }
+
+  // Append any candidates the LLM missed
+  for (let i = 0; i < candidates.length; i++) {
+    if (!seen.has(i)) {
+      ranked.push(candidates[i]);
+    }
+  }
+
+  return ranked;
+}
+
 export async function extractTicketsWithOpenRouter(
   input: OpenRouterExtractionInput,
 ): Promise<TicketResult[]> {

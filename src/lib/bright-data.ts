@@ -1,5 +1,6 @@
 import { bdclient } from "@brightdata/sdk";
 import type { SerpResult } from "@/lib/types";
+import { rankSerpResultsWithLLM } from "@/lib/openrouter-client";
 
 const PLATFORM_RULES = [
   { platform: "Ticketmaster", domains: ["ticketmaster.com"] },
@@ -157,38 +158,7 @@ function detectPlatform(url: string, title: string): string | null {
   return null;
 }
 
-function tokenizeQuery(query: string): string[] {
-  return query
-    .toLowerCase()
-    .split(/[^a-z0-9]+/g)
-    .filter((token) => token.length > 2);
-}
-
-function scoreResult(result: SerpResult, queryTokens: string[]): number {
-  const normalized = `${result.title} ${result.url}`.toLowerCase();
-  let score = 50;
-
-  for (const token of queryTokens) {
-    if (normalized.includes(token)) {
-      score += 5;
-    }
-  }
-
-  if (normalized.includes("ticket")) {
-    score += 10;
-  }
-  if (normalized.includes("event")) {
-    score += 6;
-  }
-  if (normalized.includes("/search") || normalized.includes("?q=")) {
-    score -= 12;
-  }
-  if (normalized.includes("/event/") || normalized.includes("/events/")) {
-    score += 8;
-  }
-
-  return score;
-}
+const BLOCKED_DOMAINS = ["tickpick.com", "seatgeek.com", "axs.com"];
 
 function dedupeByUrl(results: SerpResult[]): SerpResult[] {
   const seen = new Set<string>();
@@ -244,8 +214,6 @@ export async function searchTickets(query: string): Promise<SerpResult[]> {
   console.log(
     `${BRIGHT_DATA_LOG_PREFIX} extracted candidate entries: ${entries.length}`,
   );
-  const queryTokens = tokenizeQuery(query);
-
   const filtered = entries
     .map((entry) => {
       const url = getUrlFromEntry(entry);
@@ -274,10 +242,12 @@ export async function searchTickets(query: string): Promise<SerpResult[]> {
     `${BRIGHT_DATA_LOG_PREFIX} platform-matched entries:\n${stringifyForLog(filtered)}`,
   );
 
-  const unique = dedupeByUrl(filtered);
-  const topResults = unique
-    .sort((a, b) => scoreResult(b, queryTokens) - scoreResult(a, queryTokens))
-    .slice(0, 3);
+  const unique = dedupeByUrl(filtered).filter(
+    (r) => !BLOCKED_DOMAINS.some((d) => r.url.toLowerCase().includes(d)),
+  );
+
+  const ranked = await rankSerpResultsWithLLM(query, unique);
+  const topResults = ranked.slice(0, 3);
   console.log(
     `${BRIGHT_DATA_LOG_PREFIX} top results:\n${stringifyForLog(topResults)}`,
   );
