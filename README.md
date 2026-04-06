@@ -8,7 +8,7 @@
 
 # Ticket Hunter Agent
 
-**An autonomous AI agent that browses the web in real-time to find you the best available tickets — live.**
+**An autonomous AI agent that browses the web in real-time to find you the best available tickets - live.**
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/brightdata/ticket-hunter-agent)
 
